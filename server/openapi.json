@@ -1,0 +1,159 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ShortsFactory Cloud Worker",
+    "version": "1.0.0",
+    "description": "Server-side shorts factory. POST a job (background video URL or upload + up to 10 story ideas) and MP4 shorts are rendered in the cloud — the client may disconnect immediately. Poll the job until status is done/partial, then download each unit's MP4. Auth: 'Authorization: Bearer sfk_…' on every /v1 call (GET downloads also accept '?api_key=sfk_…'). Admin endpoints use the ADMIN_TOKEN instead. Voice is Microsoft Edge neural TTS (free). Stories come from Qwen/Mistral when a key is configured, otherwise an offline template writer. Background source must be a DIRECT video file URL (mp4/webm, publicly reachable) or a prior upload — platform page links (YouTube, TikTok …) are rejected."
+  },
+  "servers": [{ "url": "/" }],
+  "components": {
+    "securitySchemes": {
+      "apiKey": { "type": "http", "scheme": "bearer", "description": "sfk_… key minted via POST /v1/keys" }
+    },
+    "schemas": {
+      "Settings": {
+        "type": "object",
+        "description": "All optional — sensible defaults match the browser app.",
+        "properties": {
+          "voice": { "type": "string", "default": "en-US-AndrewNeural", "description": "Edge neural voice id, e.g. en-US-JennyNeural, en-GB-RyanNeural" },
+          "rate": { "type": "number", "default": 2, "description": "speaking rate % (-40…40)" },
+          "pitch": { "type": "number", "default": 0, "description": "pitch Hz (-20…20)" },
+          "storyStyle": { "type": "string", "enum": ["aita", "revenge", "confession", "creepy", "wholesome", "workplace", "custom"], "default": "aita" },
+          "customPrompt": { "type": "string", "description": "used when storyStyle=custom" },
+          "storyWords": { "type": "number", "default": 185 },
+          "temperature": { "type": "number", "default": 1.05 },
+          "qwenKey": { "type": "string", "description": "optional per-job DashScope key (else QWEN_API_KEY env, else offline writer)" },
+          "mistralKey": { "type": "string" },
+          "captionsOn": { "type": "boolean", "default": true },
+          "wordsPerCue": { "type": "number", "default": 3 },
+          "captionScale": { "type": "number", "default": 0.074 },
+          "captionY": { "type": "number", "default": 0.6 },
+          "captionColor": { "type": "string", "default": "#ffffff" },
+          "outlineWidth": { "type": "number", "default": 0.16 },
+          "uppercase": { "type": "boolean", "default": true },
+          "captionShadow": { "type": "boolean", "default": true },
+          "quality": { "type": "string", "enum": ["auto", "540", "720", "1080"], "default": "auto", "description": "auto = 720p on the cloud worker" },
+          "fps": { "type": "number", "enum": [24, 30, 60], "default": 30 },
+          "bitrate": { "type": "string", "enum": ["low", "med", "high"], "default": "med" },
+          "vignette": { "type": "boolean", "default": true },
+          "tailPadding": { "type": "number", "default": 0.6 },
+          "voiceVolume": { "type": "number", "default": 1 },
+          "musicVolume": { "type": "number", "default": 0.13 },
+          "musicFade": { "type": "boolean", "default": true },
+          "clipMode": { "type": "string", "enum": ["even", "random", "sequential"], "default": "even" },
+          "clipSkipIntro": { "type": "number", "default": 5 },
+          "clipSkipOutro": { "type": "number", "default": 5 },
+          "clipLengthMode": { "type": "string", "enum": ["auto", "fixed"], "default": "auto" },
+          "clipFixedLength": { "type": "number", "default": 35 },
+          "introOn": { "type": "boolean", "default": true, "description": "simplified Reddit card burned into the first seconds" },
+          "introTitleMode": { "type": "string", "enum": ["idea", "custom"], "default": "idea" },
+          "introTitle": { "type": "string" },
+          "introSubreddit": { "type": "string", "default": "r/AmItheAsshole" },
+          "introAuthor": { "type": "string", "default": "u/Throwaway_42" },
+          "introAgeLabel": { "type": "string", "default": "12h" },
+          "introUpvotes": { "type": "number", "default": 15400 },
+          "introDuration": { "type": "number", "default": 3 },
+          "introTheme": { "type": "string", "enum": ["dark", "light"], "default": "dark" },
+          "introPosY": { "type": "number", "default": 0.36 },
+          "introShowStats": { "type": "boolean", "default": true }
+        }
+      },
+      "Job": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "status": { "type": "string", "enum": ["queued", "running", "done", "partial", "failed", "canceled"] },
+          "progress": { "type": "object", "properties": { "done": { "type": "number" }, "total": { "type": "number" } } },
+          "units": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "index": { "type": "number" },
+                "idea": { "type": "string" },
+                "status": { "type": "string", "enum": ["queued", "script", "voice", "staged", "rendering", "done", "error"] },
+                "videoPath": { "type": ["string", "null"], "description": "GET this path (with auth) to download the MP4 once done" },
+                "error": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "security": [{ "apiKey": [] }],
+  "paths": {
+    "/health": {
+      "get": { "security": [], "summary": "Liveness + queue depth", "responses": { "200": { "description": "ok" } } }
+    },
+    "/v1/keys": {
+      "post": {
+        "summary": "Mint an API key for an AI agent (ADMIN_TOKEN required)",
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "label": { "type": "string" } } } } } },
+        "responses": { "201": { "description": "returns { key: 'sfk_…' } exactly once" } }
+      },
+      "get": { "summary": "List keys (admin)", "responses": { "200": { "description": "ok" } } }
+    },
+    "/v1/keys/{id}": {
+      "delete": { "summary": "Revoke a key (admin)", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "ok" } } }
+    },
+    "/v1/uploads": {
+      "post": {
+        "summary": "Upload a background video or music file (raw request body, max MAX_UPLOAD_MB)",
+        "requestBody": { "content": { "application/octet-stream": { "schema": { "type": "string", "format": "binary" } } } },
+        "responses": { "201": { "description": "{ uploadId }" } }
+      }
+    },
+    "/v1/jobs": {
+      "post": {
+        "summary": "Queue a render job (fire and forget — client may disconnect)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "videoUrl": { "type": "string", "description": "direct, publicly reachable video file URL (mp4/webm). Required unless uploadId is set." },
+                  "uploadId": { "type": "string", "description": "id from POST /v1/uploads" },
+                  "musicUrl": { "type": "string" },
+                  "musicUploadId": { "type": "string" },
+                  "count": { "type": "number", "minimum": 1, "maximum": 10, "default": 10 },
+                  "ideas": { "type": "array", "items": { "type": "string" }, "description": "story premises, one per short; missing entries are auto-generated" },
+                  "stories": { "type": "array", "items": { "type": "string" }, "description": "optional full scripts — skips AI story generation for those units" },
+                  "settings": { "$ref": "#/components/schemas/Settings" }
+                }
+              },
+              "example": {
+                "videoUrl": "https://example.com/parkour.mp4",
+                "count": 3,
+                "ideas": ["My roommate kept stealing my labelled food, so I fought back in the pettiest way possible"],
+                "settings": { "voice": "en-US-AndrewNeural", "storyStyle": "revenge", "quality": "720" }
+              }
+            }
+          }
+        },
+        "responses": { "201": { "description": "job accepted", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Job" } } } } }
+      },
+      "get": { "summary": "List jobs", "responses": { "200": { "description": "ok" } } }
+    },
+    "/v1/jobs/{id}": {
+      "get": {
+        "summary": "Poll job status until done/partial/failed",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "ok", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Job" } } } } }
+      },
+      "delete": { "summary": "Cancel a job and delete its files", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "ok" } } }
+    },
+    "/v1/jobs/{id}/videos/{n}": {
+      "get": {
+        "summary": "Download the finished MP4 of unit n (1-based). Also accepts ?api_key=sfk_…",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "n", "in": "path", "required": true, "schema": { "type": "number" } }
+        ],
+        "responses": { "200": { "description": "video/mp4" }, "404": { "description": "not ready" } }
+      }
+    }
+  }
+}

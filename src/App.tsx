@@ -85,6 +85,7 @@ import {
   type ShipQueueEntry,
 } from "./lib/shipPlan";
 import PasswordGate from "./components/PasswordGate";
+import CloudPanel from "./components/CloudPanel";
 import SetupPanel from "./components/SetupPanel";
 import ShipDialog from "./components/ShipDialog";
 import ShipPanel, { IDLE_SHIP_RUN, type ShipRun } from "./components/ShipPanel";
@@ -1179,6 +1180,16 @@ function Factory({ onLock, gateStatus }: { onLock?: () => void; gateStatus?: Gat
             onCancelShip={cancelShip}
             log={shipLog}
             busy={busy}
+          />
+        </div>
+
+        <div className="mt-5">
+          <CloudPanel
+            ideas={ideas}
+            settings={settings}
+            source={source}
+            tracks={tracks}
+            disabled={false}
           />
         </div>
 

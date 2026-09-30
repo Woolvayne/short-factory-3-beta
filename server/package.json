@@ -1,0 +1,16 @@
+{
+  "name": "shortsfactory-cloud-worker",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Railway backend: renders ShortsFactory videos server-side (ffmpeg + Edge-TTS) and exposes an API-key-protected REST API for AI agents.",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "ws": "^8.21.3"
+  }
+}

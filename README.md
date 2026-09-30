@@ -3,6 +3,11 @@
 > **🔐 NACH DEM DEPLOY ZUERST:** [docs/EINRICHTUNG.md](docs/EINRICHTUNG.md) — Passwortschutz,
 > IP-Sperre, Vercel KV, Zernio-Versand und Sendezeiten einrichten (Deutsch, Schritt für Schritt).
 > Tiefere Details & Troubleshooting: [docs/ANLEITUNG.md](docs/ANLEITUNG.md)
+>
+> **☁️ NEU — Cloud-Fabrik auf Railway:** [docs/RAILWAY.md](docs/RAILWAY.md) — Videos rendern
+> **ohne offenen Tab** (Panel `07 · CLOUD-FABRIK`, serverseitig mit ffmpeg in [`server/`](server))
+> und **API-Keys für AI-Agents**, damit beliebige AIs per REST Videos erstellen
+> (`/v1/openapi.json`).
 
 ---
 
@@ -284,8 +289,11 @@ src/
 
 api/        ← auth gate + tts relay + zernio shipping (Vercel Serverless, Node.js)
               └─ _lib/gate.js  shared gate: password check, HMAC tokens, IP rate limit
+server/     ← ☁️ Cloud-Fabrik für Railway: ffmpeg-Renderer + Job-Queue + API-Keys für
+              AI-Agents (sfk_…) + OpenAPI-Spec — Anleitung: docs/RAILWAY.md
 scripts/    ← hash-password.mjs (npm run password:hash)
 docs/       ← EINRICHTUNG.md (Einrichtung nach dem Deploy) · ANLEITUNG.md (Details, Deutsch)
+              · RAILWAY.md (Cloud-Fabrik: Rendern ohne Tab + AI-Agent-API)
 supabase/   ← inert legacy v1 (hosted Edge Functions + Shotstack), unused
 ```
 
