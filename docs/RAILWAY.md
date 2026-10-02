@@ -105,11 +105,17 @@ curl -X POST https://DEINE-URL.up.railway.app/v1/jobs \
   -H "Authorization: Bearer sfk_…" -H "content-type: application/json" \
   -d '{
     "videoUrl": "https://example.com/gameplay.mp4",
-    "count": 3,
-    "ideas": ["My roommate kept stealing my labelled food, so I fought back"],
-    "settings": { "voice": "en-US-AndrewNeural", "storyStyle": "revenge", "quality": "720" }
+    "count": 2,
+    "scripts": [
+      {
+        "title": "My roommate stole my meal prep for three months",
+        "script": "I labelled every container in the fridge, but my roommate kept taking them. I finally left one with a harmless surprise note, and the next morning the entire building knew what had been happening."
+      },
+      "My boss scheduled a meeting during my wedding, so I sent the calendar invite to everyone."
+    ],
+    "settings": { "voice": "en-US-AndrewNeural", "storyStyle": "revenge", "quality": "720", "introOn": true }
   }'
-# → { "job": { "id": "job_…", "status": "queued", … } }
+# → { "job": { "id": "job_…", "status": "queued", "units": [{ "title": "…", "script": "…" }] } }
 
 # Status pollen bis done/partial:
 curl https://…/v1/jobs/job_… -H "Authorization: Bearer sfk_…"
@@ -120,8 +126,14 @@ curl -OJ "https://…/v1/jobs/job_…/videos/1?api_key=sfk_…"
 
 Regeln für Agents: `videoUrl` muss eine **direkte, öffentlich erreichbare Videodatei**
 sein (MP4/WebM) — Plattform-Links (YouTube, TikTok …) lehnt der Server ab, aus denselben
-rechtlichen Gründen wie die Browser-App. Fehlende `ideas` füllt der Server selbst auf,
-fertige `stories` überspringen die KI-Story-Generierung.
+rechtlichen Gründen wie die Browser-App. Ein Agent kann das komplette Skript selbst als JSON
+schreiben: `scripts` ist ein Array aus Strings oder Objekten wie
+`{"title":"Mein Titel","script":"Der vollständige Text …"}`. Das `title`-Feld landet auf der
+Intro-Karte und wird bei aktiviertem Intro als **allererster gesprochener Satz** verwendet.
+`ideas` bleiben als Fallback für fehlende Einträge möglich; fehlende Skripte erzeugt der Server
+über Qwen/Mistral oder den Offline-Writer. Das alte Feld `stories` bleibt als Alias kompatibel.
+Die Antwort von `POST /v1/jobs` und jedes Polling-Ergebnis enthält pro Unit `title` und `script`,
+damit der Agent den tatsächlich verwendeten Text prüfen kann.
 
 ## 6 · Kosten & Grenzen (ehrlich)
 
@@ -140,8 +152,8 @@ fertige `stories` überspringen die KI-Story-Generierung.
 * **Speicher:** kleine Volumes → der Worker löscht Zwischendateien sofort und behält nur die
   letzten `MAX_JOBS` fertigen Jobs. Fertige Videos zeitnah herunterladen.
 * **Intro-Karte:** serverseitig als **vereinfachte statische Reddit-Karte** (Fade statt
-  Flug-Animation, kein Avatar-Bild). Wer die volle Animation will, nutzt weiter den
-  Browser-Render.
+  Flug-Animation) mit eingebettetem Standard-Snoo-Profilbild neben dem Namen. Wer die volle
+  Flug-Animation will, nutzt weiter den Browser-Render.
 * **Edge-TTS:** derselbe (kostenlose) Microsoft-Endpunkt wie bisher — gleiche
   Intermittenz-Realität, gleiche Retry-Logik. Für Tests ohne Microsoft-Endpunkt:
   Railway-Variable `TTS_FAKE=1` rendert mit stummer Tonspur + gleichmäßigen Wort-Timings.

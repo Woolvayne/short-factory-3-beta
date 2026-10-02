@@ -41,7 +41,9 @@ const headers = (cfg: CloudConfig) => ({
 
 export interface CloudUnit {
   index: number;
+  title?: string;
   idea: string;
+  script?: string | null;
   status: "queued" | "script" | "voice" | "staged" | "rendering" | "done" | "error";
   provider?: string;
   voiceDuration?: number;
@@ -118,7 +120,9 @@ export interface CloudJobPayload {
   uploadId?: string;
   musicUploadId?: string;
   count: number;
-  ideas: string[];
+  ideas?: string[];
+  /** Optional agent-style complete scripts; each may carry its own title. */
+  scripts?: Array<string | { title?: string; script?: string; text?: string }>;
   settings: Partial<Settings>;
 }
 

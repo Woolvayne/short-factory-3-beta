@@ -9,7 +9,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { speak } from "./edge-tts.js";
-import { generateStory, styleInstruction, offlineIdea } from "./stories.js";
+import { generateStory, styleInstruction, offlineIdea, introTitleFor, narrationFor } from "./stories.js";
 import { buildAss } from "./captions.js";
 import { downloadFile, makeSilentMp3, planWindows, probeDuration, renderUnit, resolveDims } from "./render.js";
 import { JOBS_DIR, UPLOADS_DIR, getJob, upsertJob, pruneJobs } from "./store.js";
@@ -128,13 +128,15 @@ async function runJob(id) {
       const voiceFile = path.join(jobDir, `voice-${unit.index + 1}.mp3`);
       if (process.env.TTS_FAKE === "1") {
         // smoke-test mode: silent voice track + evenly spaced word timings
-        const ws = unit.story.split(/\s+/).filter(Boolean);
+        const narration = narrationFor(unit, s);
+        const ws = narration.split(/\s+/).filter(Boolean);
         const dur = ws.length * 0.32 + 0.5;
         await makeSilentMp3(voiceFile, dur);
         unit.voiceDuration = Math.round(dur * 100) / 100;
         unit._words = ws.map((w, i) => ({ text: w, offset: i * 0.32, duration: 0.28 }));
       } else {
-        const take = await speak(unit.story, voice, rate, pitch, 180_000);
+        const narration = narrationFor(unit, s);
+        const take = await speak(narration, voice, rate, pitch, 180_000);
         await fs.writeFile(voiceFile, take.audio);
         unit.voiceDuration = Math.round(take.duration * 100) / 100;
         unit._words = take.words;
@@ -185,7 +187,7 @@ async function runJob(id) {
           captionShadow: s.captionShadow !== false,
           intro: introOn
             ? {
-                title: s.introTitleMode === "custom" && s.introTitle ? s.introTitle : unit.idea,
+                title: introTitleFor(unit, s),
                 subreddit: s.introSubreddit ?? "r/AmItheAsshole",
                 author: s.introAuthor ?? "u/Throwaway_42",
                 ageLabel: s.introAgeLabel ?? "12h",
@@ -259,19 +261,55 @@ async function isCanceled(id) {
   return !j || j.status === "canceled";
 }
 
-/** Build the initial unit list for a new job. */
-export function buildUnits(ideas, stories, count) {
-  const n = clamp(count ?? (ideas?.length || 10), 1, 10);
+const MAX_SCRIPT_CHARS = 50_000;
+
+/** Accept both simple strings and `{ title, script }` objects from agents. */
+function normalizeScriptEntry(value) {
+  if (typeof value === "string") {
+    return { title: "", text: value.trim().slice(0, MAX_SCRIPT_CHARS) };
+  }
+  if (!value || typeof value !== "object") return { title: "", text: "" };
+  const entry = value;
+  const text = entry.script ?? entry.text ?? entry.story ?? "";
+  return {
+    title: String(entry.title ?? "").trim().slice(0, 500),
+    text: String(text).trim().slice(0, MAX_SCRIPT_CHARS),
+  };
+}
+
+function titleFromScript(text) {
+  const clean = String(text || "").replace(/\s+/g, " ").trim();
+  if (!clean) return "";
+  const sentence = clean.match(/^(.{1,140}?[.!?])(?:\s|$)/)?.[1];
+  return (sentence || clean.slice(0, 140)).trim().replace(/[.!?]+$/, "");
+}
+
+/**
+ * Build the initial unit list for a new job.
+ *
+ * `scripts` is the agent-facing JSON input. Every entry can be a complete
+ * script string or `{ title, script }`; the legacy `stories` string array is
+ * handled by the same normalizer.
+ */
+export function buildUnits(ideas, scripts, count, titles = []) {
+  const suppliedCount = Math.max(ideas?.length || 0, scripts?.length || 0, titles?.length || 0);
+  const requested = suppliedCount || 10;
+  const n = clamp(count ?? requested, 1, 10);
   const units = [];
   const existing = [];
   for (let i = 0; i < n; i++) {
-    let idea = (ideas?.[i] ?? "").trim();
+    const supplied = normalizeScriptEntry(scripts?.[i]);
+    const ideaInput = String(ideas?.[i] ?? "").trim();
+    const titleInput = String(titles?.[i] ?? "").trim().slice(0, 500);
+    const derivedTitle = supplied.text && !ideaInput ? titleFromScript(supplied.text) : "";
+    let idea = ideaInput || supplied.title || titleInput || derivedTitle;
     if (!idea) idea = offlineIdea(existing);
     existing.push(idea);
     units.push({
       index: i,
+      title: supplied.title || titleInput || derivedTitle || idea,
       idea,
-      story: (stories?.[i] ?? "").trim() || undefined,
+      story: supplied.text || undefined,
       status: "queued",
     });
   }

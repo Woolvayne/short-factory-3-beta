@@ -56,7 +56,7 @@ import {
   type ClipPlan,
   type ClipSource,
 } from "./lib/clips";
-import { introOptionsFor, introTitleFor } from "./lib/intro";
+import { introOptionsFor, narrationFor } from "./lib/intro";
 import {
   GATE_EXPIRED_EVENT,
   fetchGateStatus,
@@ -476,12 +476,8 @@ function Factory({ onLock, gateStatus }: { onLock?: () => void; gateStatus?: Gat
           patchItem(index, { story: story.text, provider: story.provider, status: "voice" });
 
           /* The intro card and its title must be the hook: speak the exact
-           * title first, then continue with the generated story. Keep the
-           * card setting as the switch so disabling the intro preserves the
-           * previous story-only narration. */
-          const narration = settings.introOn
-            ? `${introTitleFor(seeded[index], settings)}. ${story.text}`
-            : story.text;
+           * title first, then continue with the generated story. */
+          const narration = narrationFor(seeded[index], story.text, settings);
           const take = await synthesizeSpeech(
             narration,
             settings.voice,

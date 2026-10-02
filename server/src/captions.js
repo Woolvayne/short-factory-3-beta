@@ -66,6 +66,16 @@ function wrapTitle(title, maxChars = 26, maxLines = 4) {
 const fmtUpvotes = (n) =>
   n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}k` : String(n);
 
+/** ASS vector path for a small circular, embedded Reddit/Snoo avatar. */
+function vectorCircle(cx, cy, radius, segments = 18) {
+  const points = [];
+  for (let i = 0; i < segments; i++) {
+    const angle = (Math.PI * 2 * i) / segments;
+    points.push(`${Math.round(cx + Math.cos(angle) * radius)} ${Math.round(cy + Math.sin(angle) * radius)}`);
+  }
+  return `m ${points[0]} l ${points.slice(1).join(" ")} ${points[0]}`;
+}
+
 /**
  * Build the complete .ass document.
  *
@@ -123,8 +133,10 @@ export function buildAss(words, opts) {
     const titleSize = Math.round(W * 0.052);
     const lineH = Math.round(titleSize * 1.32);
     const lines = wrapTitle(it.title || "Untitled story", 26, 4);
+    const avatarR = Math.round(W * 0.031);
+    const headerH = Math.max(Math.round(metaSize * 1.7), avatarR * 2);
     const statsH = it.showStats === false ? 0 : Math.round(W * 0.03 * 1.9);
-    const cardH = pad * 2 + Math.round(metaSize * 1.7) + lines.length * lineH + statsH;
+    const cardH = pad * 2 + headerH + lines.length * lineH + statsH;
     const cardY = Math.round(H * (it.posY ?? 0.36) - cardH / 2);
 
     const t0 = "0:00:00.00";
@@ -140,12 +152,29 @@ export function buildAss(words, opts) {
     );
 
     const textX = cardX + pad;
+    const avatarCx = textX + avatarR;
+    const avatarCy = cardY + pad + avatarR;
+    const metaX = avatarCx + avatarR + Math.round(W * 0.02);
     let y = cardY + pad;
-    const meta = `${it.subreddit || "r/stories"}  ·  ${it.author || "u/anon"}  ·  ${it.ageLabel || "12h"}`;
+
+    /* A vector-drawn Snoo-style profile image keeps the card self-contained:
+       ffmpeg never needs to fetch an external Reddit asset. */
     events.push(
-      `Dialogue: 2,${t0},${t1},IntroMeta,,0,0,0,,{\\an7\\pos(${textX},${y})${metaCol}\\bord0\\shad0${fad}}${escText(meta)}`
+      `Dialogue: 2,${t0},${t1},Card,,0,0,0,,{\\an7\\pos(0,0)\\1c&H000045FF&\\1a&H00\\bord0\\shad0${fad}\\p1}${vectorCircle(avatarCx, avatarCy, avatarR)}{\\p0}`
     );
-    y += Math.round(metaSize * 1.7);
+    events.push(
+      `Dialogue: 2,${t0},${t1},Card,,0,0,0,,{\\an7\\pos(0,0)\\1c&H00FFFFFF&\\1a&H00\\bord0\\shad0${fad}\\p1}${vectorCircle(avatarCx, avatarCy + Math.round(avatarR * 0.05), Math.round(avatarR * 0.58))}{\\p0}`
+    );
+    events.push(
+      `Dialogue: 2,${t0},${t1},Card,,0,0,0,,{\\an7\\pos(0,0)\\1c&H001B1A1A&\\1a&H00\\bord0\\shad0${fad}\\p1}${vectorCircle(avatarCx - Math.round(avatarR * 0.2), avatarCy, Math.max(1, Math.round(avatarR * 0.1)))}${vectorCircle(avatarCx + Math.round(avatarR * 0.2), avatarCy, Math.max(1, Math.round(avatarR * 0.1)))}{\\p0}`
+    );
+
+    const author = it.author || "u/anon";
+    const meta = `${author}  ·  ${it.subreddit || "r/stories"}  ·  ${it.ageLabel || "12h"}`;
+    events.push(
+      `Dialogue: 2,${t0},${t1},IntroMeta,,0,0,0,,{\\an7\\pos(${metaX},${y})${metaCol}\\bord0\\shad0${fad}}${escText(meta)}`
+    );
+    y += headerH;
     for (const [i, ln] of lines.entries()) {
       events.push(
         `Dialogue: 2,${t0},${t1},IntroTitle,,0,0,0,,{\\an7\\pos(${textX},${y + i * lineH})${titleCol}\\bord0\\shad0\\fad(${260 + i * 90},260)}${escText(ln)}`

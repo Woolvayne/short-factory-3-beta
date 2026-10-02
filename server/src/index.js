@@ -178,10 +178,21 @@ app.post("/v1/jobs", requireKey, async (req, res) => {
     return res.status(400).json({ ok: false, error: "videoUrl must be http(s) — platform page links (YouTube …) are not supported" });
   }
 
+  /* `scripts` is the agent-facing name. Keep `stories` as a backwards-
+     compatible alias and accept a single `script` for one-unit jobs. */
+  const scripts = Array.isArray(b.scripts)
+    ? b.scripts
+    : Array.isArray(b.stories)
+      ? b.stories
+      : b.script !== undefined
+        ? [b.script]
+        : [];
+  const titles = Array.isArray(b.titles) ? b.titles.map(String) : [];
   const units = buildUnits(
     Array.isArray(b.ideas) ? b.ideas.map(String) : [],
-    Array.isArray(b.stories) ? b.stories.map(String) : [],
-    b.count
+    scripts,
+    b.count,
+    titles
   );
 
   const job = {
@@ -248,7 +259,11 @@ app.get("/v1/jobs/:id/videos/:n", requireKey, async (req, res) => {
 function publicJob(job) {
   const units = job.units.map((u) => ({
     index: u.index,
+    title: u.title || u.idea,
     idea: u.idea,
+    /* The complete script is returned so an agent can audit/reuse exactly
+       what was voiced; this is never a provider key or secret. */
+    script: u.story || null,
     status: u.status,
     provider: u.provider,
     voiceDuration: u.voiceDuration,
