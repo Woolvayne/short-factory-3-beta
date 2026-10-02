@@ -28,6 +28,26 @@ export function styleInstruction(style, customPrompt = "") {
   }
 }
 
+/**
+ * Keep the card title and the spoken hook in lockstep. Agent jobs may send a
+ * separate title with a full script; legacy jobs use the idea as both.
+ */
+export function introTitleFor(unit, settings = {}) {
+  if (settings.introTitleMode === "custom" && String(settings.introTitle || "").trim()) {
+    return String(settings.introTitle).trim();
+  }
+  return String(unit?.title || unit?.idea || "Reddit Story").replace(/\s+/g, " ").trim() || "Reddit Story";
+}
+
+/** The first spoken sentence is exactly the title shown on the intro card. */
+export function narrationFor(unit, settings = {}) {
+  const story = String(unit?.story || "").replace(/\s+/g, " ").trim();
+  if (settings.introOn === false || !story) return story;
+  const title = introTitleFor(unit, settings);
+  const spokenTitle = /[.!?…]$/.test(title) ? title : `${title}.`;
+  return `${spokenTitle} ${story}`.trim();
+}
+
 const buildSystem = (cfg) =>
   [
     "You write viral first-person Reddit stories.",

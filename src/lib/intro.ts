@@ -306,10 +306,13 @@ export function drawRedditIntro(
   ctx.fillRect(cardX, cardY, Math.max(3, w * 0.008), cardH);
   ctx.restore();
 
-  /* ---- Kopfzeile: Avatar + Subreddit + Alter ---- */
+  /* ---- Kopfzeile: Standard-Reddit-Profilbild neben dem Namen ---- */
   const headY = cardY + pad + avatarR;
   const avatarX = cardX + pad + avatarR + w * 0.006;
+  const avatarTextX = avatarX + avatarR + w * 0.02;
 
+  /* Eingebetteter Snoo-Avatar: kein externer Request, damit er auch im
+   * Railway-Render und bei Offline-Vorschauen zuverlässig vorhanden ist. */
   const avatarGrad = ctx.createLinearGradient(
     avatarX - avatarR,
     headY - avatarR,
@@ -323,38 +326,42 @@ export function drawRedditIntro(
   ctx.arc(avatarX, headY, avatarR, 0, Math.PI * 2);
   ctx.fill();
 
-  /* kleines Alien-Gesicht als Avatar-Motiv */
-  ctx.fillStyle = "rgba(255,255,255,0.92)";
+  /* Reddit-Snoo-ähnliches Standardprofilbild */
+  ctx.fillStyle = "rgba(255,255,255,0.94)";
   ctx.beginPath();
-  ctx.arc(avatarX - avatarR * 0.34, headY - avatarR * 0.1, avatarR * 0.14, 0, Math.PI * 2);
-  ctx.arc(avatarX + avatarR * 0.34, headY - avatarR * 0.1, avatarR * 0.14, 0, Math.PI * 2);
+  ctx.ellipse(avatarX, headY + avatarR * 0.04, avatarR * 0.58, avatarR * 0.48, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.strokeStyle = "rgba(255,255,255,0.92)";
-  ctx.lineWidth = Math.max(1, avatarR * 0.1);
+  ctx.strokeStyle = "rgba(255,255,255,0.94)";
+  ctx.lineWidth = Math.max(1, avatarR * 0.09);
   ctx.beginPath();
-  ctx.arc(avatarX, headY + avatarR * 0.12, avatarR * 0.42, 0.25 * Math.PI, 0.75 * Math.PI);
+  ctx.moveTo(avatarX + avatarR * 0.28, headY - avatarR * 0.37);
+  ctx.lineTo(avatarX + avatarR * 0.54, headY - avatarR * 0.68);
+  ctx.stroke();
+  ctx.fillStyle = ACCENT;
+  ctx.beginPath();
+  ctx.arc(avatarX - avatarR * 0.2, headY - avatarR * 0.05, avatarR * 0.1, 0, Math.PI * 2);
+  ctx.arc(avatarX + avatarR * 0.2, headY - avatarR * 0.05, avatarR * 0.1, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = ACCENT;
+  ctx.lineWidth = Math.max(1, avatarR * 0.08);
+  ctx.beginPath();
+  ctx.arc(avatarX, headY + avatarR * 0.1, avatarR * 0.27, 0.2 * Math.PI, 0.8 * Math.PI);
   ctx.stroke();
 
   ctx.font = `700 ${metaFs}px ${UI_FONT}`;
   ctx.textBaseline = "middle";
-  const subText = o.subreddit.trim() || "r/RedditStories";
+  const authorText = o.author.trim() || "u/anon";
   ctx.fillStyle = pal.title;
-  ctx.fillText(subText, avatarX + avatarR + w * 0.02, headY - metaFs * 0.28);
-  const subW = ctx.measureText(subText).width;
+  ctx.fillText(authorText, avatarTextX, headY - metaFs * 0.28);
+  const authorW = ctx.measureText(authorText).width;
 
   ctx.font = `400 ${Math.round(metaFs * 0.86)}px ${UI_FONT}`;
   ctx.fillStyle = pal.meta;
   ctx.fillText(
-    `· ${o.ageLabel || "12 Std."}`,
-    avatarX + avatarR + w * 0.02 + subW + metaFs * 0.4,
+    `· ${o.subreddit.trim() || "r/RedditStories"} · ${o.ageLabel || "12 Std."}`,
+    avatarTextX + authorW + metaFs * 0.4,
     headY - metaFs * 0.28
   );
-
-  if (o.author.trim()) {
-    ctx.font = `400 ${Math.round(metaFs * 0.82)}px ${UI_FONT}`;
-    ctx.fillStyle = pal.meta;
-    ctx.fillText(o.author.trim(), avatarX + avatarR + w * 0.02, headY + metaFs * 0.62);
-  }
 
   /* ---- Titel: Zeilen fliegen nacheinander rein ---- */
   ctx.font = `800 ${titleFs}px ${UI_FONT}`;
@@ -440,6 +447,19 @@ export const INTRO_THEMES: { id: IntroTheme; label: string; sub: string }[] = [
 export function introTitleFor(item: Pick<LocalRenderItem, "idea">, s: Settings): string {
   if (s.introTitleMode === "custom" && s.introTitle.trim()) return s.introTitle.trim();
   return item.idea.trim() || s.introTitle.trim() || "Reddit Story";
+}
+
+/** The browser renderer uses the same title hook as the Railway worker. */
+export function narrationFor(
+  item: Pick<LocalRenderItem, "idea">,
+  story: string,
+  s: Settings
+): string {
+  const body = String(story || "").replace(/\s+/g, " ").trim();
+  if (!s.introOn || !body) return body;
+  const title = introTitleFor(item, s);
+  const spokenTitle = /[.!?…]$/.test(title) ? title : `${title}.`;
+  return `${spokenTitle} ${body}`.trim();
 }
 
 export function introOptionsFor(
