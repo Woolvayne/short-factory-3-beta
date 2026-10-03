@@ -135,7 +135,47 @@ Intro-Karte und wird bei aktiviertem Intro als **allererster gesprochener Satz**
 Die Antwort von `POST /v1/jobs` und jedes Polling-Ergebnis enthält pro Unit `title` und `script`,
 damit der Agent den tatsächlich verwendeten Text prüfen kann.
 
-## 6 · Kosten & Grenzen (ehrlich)
+## 6 · Nur die Stimme erzeugen — Railway als Ersatz für Supabase TTS
+
+Ja, dein Agent kann die Stimme auch separat erstellen. Das Railway-Backend hat dafür
+`POST /v1/tts`. Der Agent schickt Text und bekommt MP3-Audio als Base64 plus
+Wort-Timestamps zurück. Es wird kein Supabase-Projekt und kein Supabase-TTS-Key benötigt:
+
+```bash
+curl -X POST https://DEINE-URL.up.railway.app/v1/tts \\
+  -H "Authorization: Bearer sfk_…" \\
+  -H "content-type: application/json" \\
+  -d '{
+    "text": "Das ist der Text, den dein Agent sprechen lassen möchte.",
+    "voice": "de-DE-ConradNeural",
+    "rate": 0,
+    "pitch": 0
+  }' > tts.json
+
+jq -r .audioBase64 tts.json | base64 -d > voice.mp3
+```
+
+`words` ist ein Array mit `text`, `offset` und `duration` in Sekunden. Damit kann dein
+Agent eigene Untertitel synchronisieren. Bekannte Stimmen sind zum Beispiel
+`de-DE-ConradNeural`, `de-DE-KatjaNeural`, `en-US-AndrewNeural`, `en-US-JennyNeural`
+und `en-GB-RyanNeural`; die verfügbaren Edge-Stimmen können sich ändern.
+
+**Agenten-Workflow:**
+
+1. `GET https://DEINE-URL.up.railway.app/v1/openapi.json` lesen.
+2. Mit `Authorization: Bearer sfk_…` `POST /v1/tts` aufrufen, wenn nur Audio nötig ist.
+3. Die Base64-Zeichenkette dekodieren und als `voice.mp3` speichern — oder direkt
+   `POST /v1/jobs` verwenden; dort erledigt der Worker TTS, Captions und ffmpeg bereits
+   automatisch im Hintergrund.
+
+Damit ist der frühere Supabase-TTS-Call durch denselben HTTP-Agentenfluss ersetzt. Wichtig:
+Der Worker verwendet die öffentlich erreichbare Microsoft-Edge-Read-Aloud-Schnittstelle,
+nicht eine Railway-eigene Sprach-KI. Railway hostet also den Code; es fallen keine
+zusätzlichen TTS-API-Keys an, aber die Internetverbindung zum Dienst muss funktionieren.
+Für kommerziell kritische oder SLA-pflichtige Nutzung sollte später ein offizieller
+TTS-Anbieter ergänzt werden.
+
+## 7 · Kosten & Grenzen (ehrlich)
 
 * **Railway Trial:** einmalig $5 / 30 Tage, bis 1 GB RAM — reicht für den Aufbau und
   reichlich 720p-Renderläufe. **Kein dauerhafter Gratis-Volltarif.**
@@ -158,7 +198,7 @@ damit der Agent den tatsächlich verwendeten Text prüfen kann.
   Intermittenz-Realität, gleiche Retry-Logik. Für Tests ohne Microsoft-Endpunkt:
   Railway-Variable `TTS_FAKE=1` rendert mit stummer Tonspur + gleichmäßigen Wort-Timings.
 
-## 7 · Lokal testen
+## 8 · Lokal testen
 
 ```bash
 cd server
