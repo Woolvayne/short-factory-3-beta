@@ -21,6 +21,7 @@ import {
   newUploadId, revokeKey, upsertJob, verifyKey,
 } from "./store.js";
 import { buildUnits, enqueue, recoverPending } from "./worker.js";
+import { speak } from "./edge-tts.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8080);
@@ -160,6 +161,43 @@ app.post("/v1/uploads", requireKey, async (req, res) => {
   out.on("error", () => {
     if (!aborted) res.status(500).json({ ok: false, error: "upload failed" });
   });
+});
+
+/* ------------------------------------------------------------------ */
+/*  standalone TTS — useful for agents that only need an audio file     */
+/* ------------------------------------------------------------------ */
+
+app.post("/v1/tts", requireKey, async (req, res) => {
+  const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";
+  if (!text) return res.status(400).json({ ok: false, error: "text is required" });
+  if (text.length > 30_000) {
+    return res.status(413).json({ ok: false, error: "text is limited to 30,000 characters" });
+  }
+
+  const voice = typeof req.body?.voice === "string" && /^[A-Za-z0-9_-]+$/.test(req.body.voice)
+    ? req.body.voice
+    : "en-US-AndrewNeural";
+  const requestedRate = Number(req.body?.rate ?? 0);
+  const requestedPitch = Number(req.body?.pitch ?? 0);
+  const rate = Number.isFinite(requestedRate) ? Math.max(-50, Math.min(50, requestedRate)) : 0;
+  const pitch = Number.isFinite(requestedPitch) ? Math.max(-50, Math.min(50, requestedPitch)) : 0;
+
+  try {
+    const take = await speak(text, voice, rate, pitch, 180_000);
+    res.json({
+      ok: true,
+      format: "audio/mpeg",
+      voice,
+      rate,
+      pitch,
+      duration: take.duration,
+      words: take.words,
+      audioBase64: take.audio.toString("base64"),
+    });
+  } catch (error) {
+    console.error("tts:", error);
+    res.status(502).json({ ok: false, error: String(error?.message ?? error).slice(0, 500) });
+  }
 });
 
 /* ------------------------------------------------------------------ */

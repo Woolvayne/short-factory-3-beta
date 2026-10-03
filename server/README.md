@@ -16,6 +16,7 @@ POST /v1/uploads              Hintergrundvideo/Musik hochladen (Bearer sfk_…)
 POST /v1/jobs                 Render-Job anlegen (fire & forget; `scripts` erlaubt komplette Agent-Skripte)
 GET  /v1/jobs/:id             Fortschritt pollen (inkl. `title` + verwendetem `script`)
 GET  /v1/jobs/:id/videos/:n   fertiges MP4 laden (auch ?api_key=sfk_…)
+POST /v1/tts                 nur Stimme erzeugen (MP3 + Wort-Timestamps als JSON)
 ```
 
 Ein Agent kann vollständige Skripte direkt als JSON liefern:
@@ -34,3 +35,20 @@ Ein Agent kann vollständige Skripte direkt als JSON liefern:
 
 Der Titel der Karte wird bei aktiviertem Intro zuerst gesprochen. Die Job-Antwort enthält
 `title` und `script` pro Unit; `stories` bleibt als Legacy-Alias für `scripts` erhalten.
+
+Nur TTS (ohne Video) kann ein Agent ebenfalls über Railway anfordern:
+
+```bash
+curl -X POST https://DEINE-URL.up.railway.app/v1/tts \\
+  -H "Authorization: Bearer sfk_…" -H "content-type: application/json" \\
+  -d '{"text":"Das ist eine Stimme aus Railway.","voice":"de-DE-ConradNeural","rate":0,"pitch":0}' \\
+  | jq -r .audioBase64 | base64 -d > voice.mp3
+```
+
+Die Antwort enthält neben `audioBase64` (MP3) auch `duration` und `words` mit
+`offset`/`duration` in Sekunden — damit kann der Agent eigene Captions synchronisieren.
+Railway erzeugt die Stimme hier direkt über Microsoft Edge Read-Aloud (keinen Supabase-
+TTS-Aufruf und keinen zusätzlichen API-Key); der Dienst benötigt aber Internetzugriff.
+Die Stimme ist nicht dauerhaft garantiert: für produktionskritische Nutzung empfiehlt sich
+ein bezahlter TTS-Anbieter mit SLA. Der Agent kann einfach `/v1/openapi.json` lesen und
+`POST /v1/tts` oder `POST /v1/jobs` selbst aufrufen.
