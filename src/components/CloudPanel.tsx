@@ -185,7 +185,7 @@ export default function CloudPanel({
   return (
     <Section
       index="07"
-      title="Cloud-Fabrik · Railway"
+      title="Cloud-Fabrik · Server"
       hint="KNOPF DRÜCKEN · TAB ZU · SPÄTER DOWNLOADEN"
       complete={jobs.some((j) => j.status === "done")}
       active={jobs.some(jobActive)}

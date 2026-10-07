@@ -22,6 +22,7 @@ import {
 } from "./store.js";
 import { buildUnits, enqueue, recoverPending } from "./worker.js";
 import { speak } from "./edge-tts.js";
+import { renderProfile } from "./render.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8080);
@@ -86,6 +87,8 @@ app.get(["/", "/health"], async (_req, res) => {
       queued: jobs.filter((j) => j.status === "queued").length,
       running: jobs.filter((j) => j.status === "running").length,
     },
+    profile: process.env.PI_MODE === "1" ? "pi" : "default",
+    render: renderProfile(),
     adminConfigured: Boolean(ADMIN_TOKEN),
     docs: "/v1/openapi.json",
   });

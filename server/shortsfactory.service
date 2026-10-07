@@ -1,0 +1,31 @@
+# ── ShortsFactory Cloud Worker als systemd-Service (Raspberry Pi) ─────────────
+#
+# Installieren (Pfad + User ggf. anpassen):
+#   sudo cp server/shortsfactory.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now shortsfactory
+#   journalctl -u shortsfactory -f        # Live-Logs
+#
+# Oder bequem: scripts/pi-install.sh erledigt das alles automatisch.
+# Anleitung: docs/RASPBERRY_PI.md
+
+[Unit]
+Description=ShortsFactory Cloud Worker (ffmpeg renderer + AI agent API)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/short-factory-3-beta/server
+# Umgebungsdatei (ADMIN_TOKEN, PI_MODE, …) — siehe server/.env.pi.example
+EnvironmentFile=/home/pi/short-factory-3-beta/server/.env
+ExecStart=/usr/bin/node src/index.js
+Restart=on-failure
+RestartSec=10
+# Harte Limits für den kleinen Pi 3B+ (1 GB RAM): lieber sauber neustarten
+# als das ganze System in den Swap-OOM zu ziehen.
+MemoryMax=700M
+
+[Install]
+WantedBy=multi-user.target

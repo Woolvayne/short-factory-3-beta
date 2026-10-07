@@ -1,7 +1,8 @@
 /**
- * Cloud-Fabrik client — talks to the optional Railway backend
- * (`server/`). Jobs render server-side with ffmpeg, so the tab can be
- * closed as soon as the job is accepted; results are downloaded later.
+ * Cloud-Fabrik client — talks to the optional self-hosted backend
+ * (`server/`, e.g. on Railway or a Raspberry Pi). Jobs render server-side
+ * with ffmpeg, so the tab can be closed as soon as the job is accepted;
+ * results are downloaded later.
  *
  * Config (backend URL + API key) lives in localStorage on THIS device.
  */
