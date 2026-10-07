@@ -5,10 +5,15 @@ fertig** — plus **API-Keys für AI-Agents** (`sfk_…`), damit beliebige AIs p
 Videos erstellen können.
 
 * Vollständige Anleitung (Deutsch): [`../docs/RAILWAY.md`](../docs/RAILWAY.md)
+  (Cloud) oder [`../docs/RASPBERRY_PI.md`](../docs/RASPBERRY_PI.md)
+  (**Raspberry Pi 3B+**, 0 €/Monat, gratis HTTPS-Domain, Mistral-Anbindung)
 * Maschinenlesbare API-Spec: `GET /v1/openapi.json`
-* Deploy: Railway-Service mit **Root Directory `server`** → Dockerfile wird
+* Deploy Railway: Service mit **Root Directory `server`** → Dockerfile wird
   automatisch gebaut (Node 20 + ffmpeg). Pflicht-Variable: `ADMIN_TOKEN`.
   Volume auf `/data` empfohlen.
+* Deploy Pi: `bash scripts/pi-install.sh --with-service` auf dem Pi —
+  Vorlage: `server/.env.pi.example`, Service: `server/shortsfactory.service`.
+  Pi-Tuning per Env: `PI_MODE=1`, `FFMPEG_PRESET=ultrafast`, `DEFAULT_QUALITY=540`.
 
 ```
 POST /v1/keys                 API-Key erzeugen (Bearer ADMIN_TOKEN)

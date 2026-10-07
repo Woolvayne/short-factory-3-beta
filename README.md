@@ -8,6 +8,12 @@
 > **ohne offenen Tab** (Panel `07 · CLOUD-FABRIK`, serverseitig mit ffmpeg in [`server/`](server))
 > und **API-Keys für AI-Agents**, damit beliebige AIs per REST Videos erstellen
 > (`/v1/openapi.json`).
+>
+> **🥧 NEU — Eigener Server auf dem Raspberry Pi 3B+:** [docs/RASPBERRY_PI.md](docs/RASPBERRY_PI.md) —
+> dasselbe Backend **für 0 €/Monat** auf deinem Pi, mit **stabiler öffentlicher HTTPS-URL**
+> (Tailscale Funnel, ohne Portfreigabe, **keine Kreditkarte nötig**) und
+> **Mistral-Anbindung per Server-URL** (`scripts/mistral-agent-example.py`).
+> Installer: `bash scripts/pi-install.sh`.
 
 ---
 

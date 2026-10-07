@@ -17,6 +17,19 @@ import { Readable } from "node:stream";
 const FFMPEG = process.env.FFMPEG_PATH || "ffmpeg";
 const FFPROBE = process.env.FFPROBE_PATH || "ffprobe";
 
+/* Encoding preset — override for weak boxes: FFMPEG_PRESET=ultrafast
+   is the recommended setting on a Raspberry Pi 3B+ (see docs/RASPBERRY_PI.md). */
+const FFMPEG_PRESET = (() => {
+  const allowed = new Set(["ultrafast", "superfast", "veryfast", "faster", "fast", "medium"]);
+  const p = String(process.env.FFMPEG_PRESET || "veryfast").trim().toLowerCase();
+  return allowed.has(p) ? p : "veryfast";
+})();
+
+/** Small-box introspection for GET /health (no secrets). */
+export function renderProfile() {
+  return { preset: FFMPEG_PRESET, autoDims: resolveDims("auto") };
+}
+
 function run(cmd, args, opts = {}) {
   return new Promise((resolve, reject) => {
     execFile(
@@ -99,7 +112,12 @@ export function planWindows(sourceDuration, count, clipLengths, { skipIntro = 5,
 export function resolveDims(quality) {
   if (quality === "540") return { width: 540, height: 960 };
   if (quality === "1080") return { width: 1080, height: 1920 };
-  return { width: 720, height: 1280 }; // "auto" on a small cloud box = 720p
+  // "auto" on a small cloud box = 720p; on a Raspberry Pi 3B+ set
+  // DEFAULT_QUALITY=540 (see docs/RASPBERRY_PI.md) to halve render time.
+  const dflt = String(process.env.DEFAULT_QUALITY || "720").trim();
+  if (dflt === "540") return { width: 540, height: 960 };
+  if (dflt === "1080") return { width: 1080, height: 1920 };
+  return { width: 720, height: 1280 }; // "auto" default = 720p
 }
 
 /**
@@ -164,7 +182,7 @@ export async function renderUnit(a) {
     "-filter_complex", `[0:v]${vf}[vout];${filters.join(";")}`,
     "-map", "[vout]", "-map", aOut,
     "-t", total.toFixed(2),
-    "-c:v", "libx264", "-preset", "veryfast", "-crf", String(crf),
+    "-c:v", "libx264", "-preset", FFMPEG_PRESET, "-crf", String(crf),
     "-pix_fmt", "yuv420p", "-profile:v", "high",
     "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
     "-movflags", "+faststart",
