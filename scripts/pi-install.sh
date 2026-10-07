@@ -2,27 +2,30 @@
 # ── ShortsFactory: Pi-Installer ──────────────────────────────────────────────
 # Richtet den Cloud Worker (`server/`) auf einem Raspberry Pi ein:
 # Node.js 20, ffmpeg, Fonts, npm-Pakete, Datenverzeichnis, ADMIN_TOKEN
-# und optional den systemd-Service + Cloudflare-Tunnel (gratis HTTPS-Domain).
+# und optional den systemd-Service + Tailscale-Funnel (stabile öffentliche URL).
 #
 # Aufruf auf dem Pi, im Repo-Ordner:
 #   bash scripts/pi-install.sh                 # Basis-Installation
 #   bash scripts/pi-install.sh --with-service  # + systemd Autostart
-#   bash scripts/pi-install.sh --with-tunnel   # + cloudflared installieren
+#   bash scripts/pi-install.sh --with-funnel   # + Tailscale (öffentliche URL, empfohlen)
+#   bash scripts/pi-install.sh --with-tunnel   # + cloudflared (nur Cloudflare-Variante)
 #
 # Anleitung (Schritt für Schritt): docs/RASPBERRY_PI.md
 set -euo pipefail
 
 WITH_SERVICE=0
 WITH_TUNNEL=0
+WITH_FUNNEL=0
 for arg in "$@"; do
   case "$arg" in
     --with-service) WITH_SERVICE=1 ;;
     --with-tunnel) WITH_TUNNEL=1 ;;
+    --with-funnel) WITH_FUNNEL=1 ;;
     -h|--help)
-      sed -n '2,14p' "$0"
+      sed -n '2,15p' "$0"
       exit 0
       ;;
-    *) echo "Unbekannte Option: $arg (erlaubt: --with-service, --with-tunnel)" >&2; exit 1 ;;
+    *) echo "Unbekannte Option: $arg (erlaubt: --with-service, --with-funnel, --with-tunnel)" >&2; exit 1 ;;
   esac
 done
 
@@ -136,4 +139,18 @@ if [ "$WITH_TUNNEL" = 1 ]; then
   echo "  Service laufen lassen — genaue Befehle: docs/RASPBERRY_PI.md, Kap. 3.6."
 fi
 
-say "Fertig ✔  Weiter mit docs/RASPBERRY_PI.md (Kap. 3.3 Key erzeugen, 3.6 Domain, 3.9 Mistral)."
+# ── 8 · optional: Tailscale + Funnel (stabile öffentliche HTTPS-URL, 0 €, keine Karte)
+if [ "$WITH_FUNNEL" = 1 ]; then
+  say "Tailscale installieren …"
+  if ! command -v tailscale >/dev/null 2>&1; then
+    curl -fsSL https://tailscale.com/install.sh | sh
+  fi
+  tailscale version
+  echo
+  echo "  Nächste Schritte (einmalig, Details: docs/RASPBERRY_PI.md, Kap. 3.6):"
+  echo "    sudo tailscale up                 # Login-Link im Browser öffnen (gratis, keine Karte)"
+  echo "    # Admin → DNS → MagicDNS + HTTPS einschalten"
+  echo "    sudo tailscale funnel --bg 8080   # → deine öffentliche https://….ts.net-URL"
+fi
+
+say "Fertig ✔  Weiter mit docs/RASPBERRY_PI.md (Kap. 3.5 testen, 3.6 URL, 3.7 Key, 3.9 Mistral)."

@@ -1,10 +1,12 @@
 # 🥧 ShortsFactory auf dem Raspberry Pi 3B+ — eigener Server, gratis Domain, Mistral-Anbindung
 
 > **Kurzantwort auf deine Frage:** Ja — dein **Raspberry Pi 3B+ kann der Server** sein.
-> Das Backend in [`server/`](../server) läuft auf dem Pi, eine **gratis HTTPS-Domain**
-> (Cloudflare Tunnel, ohne Portfreigabe) macht es weltweit erreichbar, und **Mistral /
-> beliebige AI-Agents greifen per Server-URL + OpenAPI-Spec + API-Key** darauf zu —
-> exakt wie bei der [Railway-Variante](RAILWAY.md), nur **0 €/Monat** statt 5 €.
+> Das Backend in [`server/`](../server) läuft auf dem Pi, eine **stabile öffentliche
+> HTTPS-Adresse** (Tailscale Funnel, ohne Portfreigabe) macht es weltweit erreichbar, und
+> **Mistral / beliebige AI-Agents greifen per Server-URL + OpenAPI-Spec + API-Key**
+> darauf zu — exakt wie bei der [Railway-Variante](RAILWAY.md), nur **0 €/Monat**
+> statt 5 €. **Nirgends ist eine Kreditkarte nötig** — kein Railway, keine Domain,
+> kein kostenpflichtiger Dienst (Kap. 1).
 > Ehrliche Grenze: Der 3B+ rendert **langsam** (Kap. 4) — als Nacht-Fabrik top,
 > als Echtzeit-Maschine eher nicht.
 
@@ -18,12 +20,12 @@
 | 2 | Repo klonen, `pi-install.sh` laufen lassen (Node 20, ffmpeg, Worker) | Kap. 3.2 |
 | 3 | `.env` prüfen, Worker als systemd-Service starten | Kap. 3.3–3.4 |
 | 4 | Lokal testen: `GET /health` | Kap. 3.5 |
-| 5 | **Gratis Domain + HTTPS** via Cloudflare Tunnel (kein Portforwarding, kein DynDNS) | Kap. 3.6 |
+| 5 | **Stabile öffentliche HTTPS-URL** via Tailscale Funnel (kein Portforwarding, keine Karte, keine Domain) | Kap. 3.6 |
 | 6 | API-Key (`sfk_…`) erzeugen, Zugriff von außen testen | Kap. 3.7 |
 | 7 | App anbinden (Panel `07 · CLOUD-FABRIK · SERVER`) | Kap. 3.8 |
 | 8 | **Mistral anbinden: Server-URL + `/v1/openapi.json` + Key** | Kap. 3.9 |
 
-Zeitaufwand: ca. **1–2 Stunden** beim ersten Mal (inkl. Cloudflare-Account).
+Zeitaufwand: ca. **1–2 Stunden** beim ersten Mal (inkl. gratis Tailscale-Account, keine Karte).
 
 ## 1 · Was du brauchst
 
@@ -35,33 +37,40 @@ Zeitaufwand: ca. **1–2 Stunden** beim ersten Mal (inkl. Cloudflare-Account).
 * Optional, aber sinnvoll: kleine Kühlkörper/Lüfter (Volllast über Stunden wird warm),
   USB-Stick/SSD als Datengrab statt SD-Karte (Kap. 4).
 
-**Gratis-Accounts:**
+**Gratis-Accounts (der einzige Pflicht-Account ist Nr. 1 — ohne Karte):**
 
-* [Cloudflare](https://dash.cloudflare.com/sign-up) (Free-Tarif reicht) — für Domain + HTTPS.
-* Entweder eine **eigene Domain** (~10 €/Jahr, z. B. bei Cloudflare Registrar, INWX, Netcup)
-  **oder ganz ohne eigene Domain**: Cloudflare vergibt `*.cfargotunnel.com`-Adressen —
-  HTTPS inklusive, 0 € für immer (Kap. 3.6, Variante A2).
-* Optional: [Mistral API-Key](https://console.mistral.ai/) (für echte AI-Stories im Worker
-  und für das Agent-Beispiel; ohne Key nutzt der Worker den Offline-Storywriter).
+1. **[Tailscale](https://tailscale.com/)** (Personal-Tarif: **dauerhaft gratis, keine
+   Kreditkarte nötig** [1](https://costbench.com/software/business-vpn/tailscale/))
+   — Login per GitHub/Google/Microsoft, 1 Minute. Liefert die **stabile öffentliche
+   HTTPS-URL** (`https://dein-pi.tail1234.ts.net`) für App + Mistral.
+2. Optional, erst später wenn du willst: [Mistral API-Key](https://console.mistral.ai/)
+   für echte AI-Stories im Worker und das Agent-Beispiel. **Ohne Key läuft alles** —
+   der Worker nutzt den Offline-Storywriter, und Mistral (Le Chat, gratis) kann den
+   Pi trotzdem per Server-URL ansteuern (Kap. 3.9).
+3. **NICHT nötig:** kein Railway (genau das ersetzen wir), keine eigene Domain,
+   kein Cloudflare-Account, **nirgends eine Kreditkarte**.
 
 ## 2 · Architektur (was läuft wo)
 
 ```
 ┌─────────────┐   HTTPS    ┌──────────────┐  Tunnel (outbound,   ┌─────────────────────┐
-│ Dein Browser│ ─────────▶ │  Cloudflare  │ ── kein offener ───▶ │  Raspberry Pi 3B+   │
-│ / Handy     │            │  (gratis     │    Port nötig!       │  :8080              │
-├─────────────┤            │   Domain +   │                      │  server/index.js    │
-│ Mistral /   │ ─────────▶ │   HTTPS +    │                      │  · REST-API /v1/*   │
-│ AI-Agents   │  Server-URL│   DDoS-Schutz│                      │  · ffmpeg rendert   │
-└─────────────┘  + sfk_-Key└──────────────┘                      │  · Edge-TTS (out)   │
-                                                                │  · Qwen/Mistral(out)│
+│ Dein Browser│ ─────────▶ │  Tailscale   │ ── kein offener ───▶ │  Raspberry Pi 3B+   │
+│ / Handy     │            │  Funnel      │    Port nötig!       │  :8080              │
+├─────────────┤            │  (gratis,    │                      │  server/index.js    │
+│ Mistral /   │ ─────────▶ │   stabile    │                      │  · REST-API /v1/*   │
+│ AI-Agents   │  Server-URL│   ts.net-URL │                      │  · ffmpeg rendert   │
+└─────────────┘  + sfk_-Key│  + HTTPS)    │                      │  · Edge-TTS (out)   │
+                           └──────────────┘                      │  · Qwen/Mistral(out)│
                                                                 └─────────────────────┘
 ```
 
-* Der Pi baut **von innen** einen verschlüsselten Tunnel zu Cloudflare auf —
+* Der Pi baut **von innen** eine verschlüsselte Verbindung zu Tailscale auf —
   deshalb braucht es **keine Portfreigabe** in der FritzBox, keine statische IP,
-  kein DynDNS, und es funktioniert auch hinter **CGNAT / DS-Lite** (Kabel/Vodafone).
-* Die App (Vercel) und Mistral sehen nur `https://deine-domain` — der Pi bleibt unsichtbar.
+  kein DynDNS, keine eigene Domain, und es funktioniert auch hinter
+  **CGNAT / DS-Lite** (Kabel/Vodafone).
+* Die App (Vercel) und Mistral sehen nur `https://dein-pi.tail1234.ts.net` — Funnel
+  ist auf **allen Tailscale-Plänen inklusive** [2](https://tunnels.io/compare/tailscale),
+  die URL ist **stabil über Neustarts** und das HTTPS-Zertifikat kommt automatisch.
 * Schwerstarbeit (ffmpeg) läuft **sequenziell**: ein Video nach dem anderen, damit
   1 GB RAM nicht platzt. Genau dafür ist der Worker schon gebaut (`worker.js`).
 
@@ -100,7 +109,9 @@ Das Skript (idempotent, kann mehrfach laufen) erledigt:
 * `server/.env` aus `.env.pi.example` inkl. **zufälligem `ADMIN_TOKEN`**
 * Rauchtest (`/health`) und mit `--with-service` den **systemd-Autostart**
 
-Mit `--with-tunnel` installiert es zusätzlich `cloudflared` (Kap. 3.6).
+Mit `--with-funnel` installiert es zusätzlich **Tailscale** (Kap. 3.6, empfohlen),
+mit `--with-tunnel` alternativ `cloudflared` (nur für die optionale
+Cloudflare-Variante mit eigener Domain).
 
 ### 3.3 `.env` prüfen
 
@@ -136,77 +147,83 @@ curl -s http://localhost:8080/health | head -c 500; echo
 # → {"ok":true,"service":"shortsfactory-cloud-worker",…,"profile":"pi",…} ✔
 ```
 
-### 3.6 Gratis Domain + HTTPS (Cloudflare Tunnel — empfohlen)
+### 3.6 Stabile öffentliche HTTPS-URL (Tailscale Funnel — empfohlen, 0 €, keine Karte)
 
-**Warum diese Variante:** 0 €, automatisches HTTPS-Zertifikat, keine Portfreigabe,
-kein DynDNS, funktioniert hinter jedem Router (auch CGNAT), DDoS-Schutz inklusive,
-der Pi ist von außen unsichtbar. [1](https://raspberrytips.com/cloudflare-selfhosted-website/)
+**Warum diese Variante:** Tailscale Personal ist **dauerhaft gratis ohne Kreditkarte**
+[1](https://costbench.com/software/business-vpn/tailscale/), **Funnel ist auf allen
+Plänen inklusive** [2](https://tunnels.io/compare/tailscale) und liefert eine
+**stabile öffentliche HTTPS-Adresse** (`https://dein-pi.tail1234.ts.net`) —
+ohne Portfreigabe, ohne Domain-Kauf, ohne DynDNS, hinter jedem Router (auch
+CGNAT/DS-Lite). Zertifikat automatisch, URL überlebt Neustarts. Das ist die
+**Server-URL für App + Mistral**.
+
+1. **Tailscale installieren** (einmalig, auf dem Pi):
+   ```bash
+   bash scripts/pi-install.sh --with-funnel   # oder manuell:
+   # curl -fsSL https://tailscale.com/install.sh | sh
+   ```
+2. **Anmelden:**
+   ```bash
+   sudo tailscale up
+   # → zeigt einen Login-Link; im Browser öffnen und mit GitHub/Google/Microsoft
+   #    einloggen (neuer Personal-Tarif, gratis, KEINE Karte). Fertig in 1 Minute.
+   ```
+3. **Im Tailscale-Admin** ([login.tailscale.com/admin/dns](https://login.tailscale.com/admin/dns)):
+   **MagicDNS → Enabled** und **HTTPS → Enabled** (2 Klicks, gratis).
+4. **Funnel einschalten:**
+   ```bash
+   sudo tailscale funnel --bg 8080
+   # → https://shortsfactory.tail1234.ts.net  ✔  GENAU DIESE URL NOTIEREN!
+   #    (Name/Zahl sind bei dir anders — nimm deine echte Ausgabe.)
+   ```
+   Status prüfen: `tailscale funnel status`. Nach einem Reboot bleibt alles aktiv
+   (tailscaled startet automatisch, Funnel-Konfig ist persistent).
+5. **Test von außen** (Handy mit **mobilen Daten**, WLAN aus!):
+   ```bash
+   curl https://shortsfactory.tail1234.ts.net/health
+   # → {"ok":true,…} ✔  Jetzt ist dein Pi weltweit erreichbar.
+   ```
+
+Gut zu wissen: Die URL ist kryptisch, aber stabil. Fair Use reicht locker für
+API-Calls + MP4-Downloads. Alle `/v1/*`-Aufrufe brauchen weiterhin deinen
+`sfk_…`-Key (Kap. 3.7 + 5) — Funnel allein schützt nichts, es macht nur erreichbar.
+
+**Alternative A · Cloudflare Tunnel mit eigener Domain (optional, erst später):**
+
+Schönere URL (`https://sf.deine-domain.de`), aber: Domain kostet ~10 €/Jahr **und**
+Cloudflare fragt beim Zero-Trust-Onboarding **ggf. nach einer Kreditkarte**
+([Quelle](https://www.cloudflare.com/zero-trust/trial)) — deshalb **nicht** der
+No-Card-Weg. Falls du später willst: Domain auf Cloudflare-Nameserver zeigen →
+Zero Trust → Networks → Tunnels → Tunnel anlegen → `cloudflared` per
+`pi-install.sh --with-tunnel` installieren → Public Hostname auf
+`http://localhost:8080` zeigen. Anleitungen:
+[1](https://raspberrytips.com/cloudflare-selfhosted-website/)
 [2](https://raspberry.tips/en/raspberrypi-einsteiger/raspberry-pi-cloudflare-tunnel-en)
+[3](https://berkem.xyz/blog/hosting-n8n-on-raspberry-pi/)
 
-**A1 · Mit eigener Domain (empfohlen, ~10 €/Jahr für die Domain, Tunnel gratis):**
+**Alternative B · Cloudflare Quick Tunnel (nur zum Testen, 30 Sekunden):**
 
-1. Domain auf Cloudflare-Nameserver zeigen (Anleitung im Cloudflare-Dashboard).
-2. Cloudflare-Dashboard → **Zero Trust** → **Networks → Tunnels** → **Create a tunnel**
-   → Typ **Cloudflared** → Name z. B. `shortsfactory` → Token kopieren. [3](https://berkem.xyz/blog/hosting-n8n-on-raspberry-pi/)
-3. Auf dem Pi:
-   ```bash
-   bash scripts/pi-install.sh --with-tunnel   # falls noch nicht geschehen
-   echo 'CLOUDFLARED_TOKEN=dein-tunnel-token' | sudo tee /etc/shortsfactory-tunnel.env
-   sudo cloudflared service install "$CLOUDFLARED_TOKEN"  # Alternative: Token direkt
-   ```
-   Sauberer als Service-Datei (empfohlen):
-   ```bash
-   # /etc/systemd/system/cloudflared.service anlegen:
-   sudo tee /etc/systemd/system/cloudflared.service >/dev/null <<'EOF'
-   [Unit]
-   Description=Cloudflare Tunnel (ShortsFactory)
-   After=network-online.target shortsfactory.service
-   Wants=network-online.target
+```bash
+cloudflared tunnel --url http://localhost:8080
+# → https://…trycloudflare.com — Wechselt bei JEDEM Neustart, Ratenlimits.
+```
 
-   [Service]
-   Type=simple
-   EnvironmentFile=/etc/shortsfactory-tunnel.env
-   ExecStart=/usr/bin/cloudflared tunnel --no-autoupdate run --token ${CLOUDFLARED_TOKEN}
-   Restart=on-failure
-   RestartSec=10
+Ohne Domain im Cloudflare-Account gibt es **keinen stabilen** benannten Tunnel —
+für eine stabile No-Card-URL nimm Funnel (oben).
 
-   [Install]
-   WantedBy=multi-user.target
-   EOF
-   sudo systemctl daemon-reload
-   sudo systemctl enable --now cloudflared
-   ```
-4. Im Tunnel unter **Public Hostnames** eintragen:
-   * Subdomain: z. B. `sf` → Domain wählen → Service: `http://localhost:8080` ✔
-5. Test von außen (Handy, mobile Daten!):
-   ```bash
-   curl https://sf.deine-domain.de/health
-   ```
-
-**A2 · Ganz ohne eigene Domain (0,00 €):**
-
-* Im Zero-Trust-Dashboard einen Tunnel anlegen und als Public Hostname die
-  angebotene `*.cfargotunnel.com`-Adresse nutzen, oder für erste Tests:
-  ```bash
-  cloudflared tunnel --url http://localhost:8080
-  # → gibt eine https://…trycloudflare.com-URL aus (nur für Tests — wechselt bei Neustart!)
-  ```
-  Für Mistral (Kap. 3.9) nimm die **stabile** Variante A1 oder eine feste
-  `cfargotunnel.com`-Adresse aus dem Dashboard — keine `trycloudflare.com`-Wegwerf-URL.
-
-**Nicht empfohlen für dieses Ziel:**
+**Sonst nicht empfohlen:**
 
 | Alternative | Warum nicht |
 | --- | --- |
-| FritzBox-Portfreigabe + DuckDNS + Let's Encrypt | geht, aber: fummlig, bricht bei CGNAT/DS-Lite, Pi direkt im Internet |
-| Tailscale Funnel | top für privat — aber **keine saubere öffentliche Server-URL für Mistral** |
-| ngrok Free | URL wechselt ständig, Limits, Warnseite vor der API |
+| FritzBox-Portfreigabe + DuckDNS + Let's Encrypt | gratis ohne Karte, aber fummlig, bricht bei CGNAT/DS-Lite, Pi direkt im Internet — nur als Notfall-Plan |
+| ngrok Free | URL wechselt, Warnseite vor der API, Limits |
+| IPv6-Freigaben | fummelig, nicht alle Clients/Agents spielen sauber mit |
 
 ### 3.7 API-Key erzeugen + Zugriff von außen testen
 
 ```bash
 # Auf dem Pi (ADMIN_TOKEN aus server/.env):
-export SF=https://sf.deine-domain.de
+export SF=https://shortsfactory.tail1234.ts.net
 curl -X POST $SF/v1/keys \
   -H "Authorization: Bearer DEIN_ADMIN_TOKEN" \
   -H "content-type: application/json" \
@@ -225,7 +242,7 @@ du einzeln widerrufen: `DELETE /v1/keys/key_xxx` (mit `ADMIN_TOKEN`).
 ### 3.8 App anbinden (Panel `07 · CLOUD-FABRIK · SERVER`)
 
 1. App öffnen (Vercel-URL) → ganz unten Panel **`07 · CLOUD-FABRIK · SERVER`**.
-2. **Backend-URL** = `https://sf.deine-domain.de`, **API-Key** = `sfk_…` → **TEST**.
+2. **Backend-URL** = `https://shortsfactory.tail1234.ts.net`, **API-Key** = `sfk_…` → **TEST**.
    Grüne LED = verbunden ✔ (bleibt im localStorage des Geräts).
 3. Wie gewohnt: Ideen in `01`, Quelle in `02` (**1 SOURCE → 10**), optional Musik in `03`.
 4. **„n VIDEOS IN DER CLOUD RENDERN“** → sobald der Job angenommen ist: **Tab zu.**
@@ -246,13 +263,13 @@ Maschinen-Spec gleich mit.
 
 | # | Was | Beispiel |
 | --- | --- | --- |
-| 1 | **Server-URL** (Basis) | `https://sf.deine-domain.de` |
-| 2 | **OpenAPI-Spec** (alle Endpunkte, maschinenlesbar) | `https://sf.deine-domain.de/v1/openapi.json` |
+| 1 | **Server-URL** (Basis) | `https://shortsfactory.tail1234.ts.net` |
+| 2 | **OpenAPI-Spec** (alle Endpunkte, maschinenlesbar) | `https://shortsfactory.tail1234.ts.net/v1/openapi.json` |
 | 3 | **API-Key** (ein eigener pro Agent) | `sfk_…` (Header `Authorization: Bearer sfk_…`) |
 
 **Copy-paste-fähiger Prompt für einen Agenten (Le Chat, Mistral AI Studio, Custom Bot, n8n …):**
 
-> „Lies die API-Spec unter `https://sf.deine-domain.de/v1/openapi.json`.
+> „Lies die API-Spec unter `https://shortsfactory.tail1234.ts.net/v1/openapi.json`.
 > Dein API-Key ist `sfk_…` (Header `Authorization: Bearer …`).
 > Erstelle 2 Shorts aus dem Hintergrundvideo `https://example.com/gameplay.mp4`
 > (direkte MP4-URL!): schreibe komplette englische Skripte (~180 Wörter), lege den
@@ -274,7 +291,7 @@ GET  /v1/openapi.json         die Spec für den Agenten (ohne Auth lesbar)
 
 ```bash
 pip install mistralai
-export MISTRAL_API_KEY=... SF_BASE_URL=https://sf.deine-domain.de \
+export MISTRAL_API_KEY=... SF_BASE_URL=https://shortsfactory.tail1234.ts.net \
        SF_API_KEY=sfk_... SF_VIDEO_URL=https://example.com/hintergrund.mp4
 python3 scripts/mistral-agent-example.py "2 Videos über WG-Streit"
 ```
@@ -315,10 +332,10 @@ Für „10 Videos in 10 Minuten“ brauchst du mehr Wumms (Kap. 7).
 
 * `ADMIN_TOKEN` lang & zufällig (Installer erzeugt eines) — **nie** in Git/Chat posten.
 * **Pro Agent ein `sfk_…`-Key** mit Label; ungenutzte widerrufen (`DELETE /v1/keys/…`).
-* Cloudflare Tunnel = Pi hat **keine offenen Ports** — trotzdem: Pi-User-Passwort stark,
-  SSH-Key statt Passwort erwägen, `sudo apt update && sudo apt upgrade` monatlich.
-* Optional: im Cloudflare-Dashboard unter **Access** zusätzlich eine Login-Wand vor
-  die Domain hängen (Agent-Calls brauchen dann einen Service-Token — nur für Profis).
+* Tailscale Funnel = Pi braucht **keine offenen Ports** im Router — trotzdem: Pi-User-Passwort
+  stark, SSH-Key statt Passwort erwägen, `sudo apt update && sudo apt upgrade` monatlich.
+* Denk dran: Die Funnel-URL ist **öffentlich** — `/health` und `/v1/openapi.json` sind
+  absichtlich lesbar, aber alle Aktionen brauchen deinen `sfk_…`-Key. Keys nie posten.
 * Backup: `/home/pi/shortsfactory-data/keys.json` + `jobs.json` gelegentlich kopieren
   (darin: nur Key-**Hashes**, keine Secrets ✔).
 
@@ -327,18 +344,20 @@ Für „10 Videos in 10 Minuten“ brauchst du mehr Wumms (Kap. 7).
 | Posten | Kosten |
 | --- | --- |
 | Pi 3B+ (vorhanden) | 0 € |
-| Cloudflare Tunnel + HTTPS + DDoS-Schutz | 0 € |
-| `*.cfargotunnel.com`-Adresse | 0 € (eigene Domain optional ~10 €/Jahr) |
+| Tailscale Personal + Funnel (stabile `*.ts.net`-URL + HTTPS) | 0 €, keine Karte |
+| Eigene Domain (optional, nur für eine schönere URL) | ~10 €/Jahr — oder weglassen = 0 € |
 | Edge-TTS-Stimmen, Offline-Stories | 0 € |
 | Strom (Pi 3B+ ~2–4 W, ~25 kWh/Jahr) | ~8 €/**Jahr** |
-| Mistral API (nur wenn du sie nutzt) | Pay-per-use, wenige Cent pro Batch |
+| Mistral (Le Chat gratis zur Agent-Steuerung; API-Key optional) | 0 € für den Start |
 
 ## 7 · Troubleshooting
 
 | Symptom | Ursache / Fix |
 | --- | --- |
 | `curl localhost:8080/health` → keine Antwort | `journalctl -u shortsfactory -50` lesen; meist `.env`-Tippfehler → `sudo systemctl restart shortsfactory` |
-| Von außen: `521/522/530` | Tunnel offline: `sudo systemctl status cloudflared`; Token in `/etc/shortsfactory-tunnel.env` prüfen |
+| Von außen: `521/522/530` (nur Cloudflare-Alternative) | Tunnel offline: `sudo systemctl status cloudflared`; Token in `/etc/shortsfactory-tunnel.env` prüfen |
+| Von außen: Funnel-URL lädt nicht | `tailscale funnel status` prüfen; Admin → DNS → MagicDNS + HTTPS an? Danach `sudo tailscale funnel --bg 8080` erneut |
+| `tailscale funnel` meldet Policy/Permission-Fehler | Admin → Access Controls → `nodeAttrs` ergänzen: `{"target":["autogroup:member"],"attr":["funnel"]}` (nur falls gefordert) |
 | `401 API key invalid` | `sfk_…` vollständig kopiert? Key pro Agent; notfalls neuen via `ADMIN_TOKEN` erzeugen |
 | Job hängt auf `rendering` ewig | normal auf dem 3B+ (Kap. 4)! Bei >30 Min/Short: Kühlung + Netzteil prüfen (`vcgencmd get_throttled` — `0x0` = ok) |
 | `file was pruned` / Jobs weg | `MAX_JOBS` erreicht oder Pi neugestartet ohne Datenverzeichnis — MP4s zeitnah laden |
